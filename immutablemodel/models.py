@@ -1,5 +1,6 @@
 # encoding: utf-8
-from django.db import models
+from django.db import models, router
+from django.db.models.deletion import Collector
 from django.utils import six
 
 
@@ -194,7 +195,12 @@ class ImmutableModel(six.with_metaclass(ImmutableModelMeta, models.Model)):
                 raise CantDeleteImmutableException(
                     "%s is immutable and cannot be deleted" % self
                 )
-        self._deleting_immutable_model = True
+        collector = Collector(using=router.db_for_write(self.__class__, instance=self))
+        collector.collect([self], collect_related=False)
+        collector.sort()
+        for model, instances in collector.data.items():
+            for instance in instances:
+                instance._deleting_immutable_model = True
         super(ImmutableModel, self).delete()
         delattr(self, '_deleting_immutable_model')
 
